@@ -1,9 +1,17 @@
 import { Path, IFormPathMatcher } from '@uform/types'
-import { isArr, isStr, getPathSegments, toArr, clone, isFn } from '@uform/utils'
+import {
+  isArr,
+  isStr,
+  getPathSegments,
+  toArr,
+  clone,
+  isFn,
+  globalThisPolyfill
+} from '@uform/utils'
 
 export * from '@uform/utils'
 
-const self = window
+const self = globalThisPolyfill
 
 const getScheduler = () => {
   if (!self.requestAnimationFrame) {
@@ -61,13 +69,13 @@ export const publishFormState = state => {
     dirty
   } = state
   return {
-    values,
+    values: clone(values),
     valid,
     invalid,
     errors,
     pristine,
     dirty,
-    initialValues
+    initialValues: clone(initialValues)
   }
 }
 
@@ -100,7 +108,7 @@ export const publishFieldState = state => {
     loading,
     errors: errors.concat(effectErrors),
     pristine,
-    initialValue,
+    initialValue: clone(initialValue),
     name,
     path,
     props,

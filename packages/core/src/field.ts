@@ -322,7 +322,7 @@ export class Field implements IField {
     }
   }
 
-  public changeEditable(editable: boolean) {
+  public changeEditable(editable: boolean | ((name: string) => boolean)): void {
     if (!this.props || !isEmpty(this.props.editable)) {
       return
     }
@@ -357,10 +357,6 @@ export class Field implements IField {
     }
     if (!this.hiddenFromParent) {
       this.context.deleteIn(this.name)
-    }
-    //如果是卸载节点，会自动遍历树节点逐个卸载
-    if (typeof this.value === 'object') {
-      this.context.updateChildrenVisible(this, false)
     }
   }
 
