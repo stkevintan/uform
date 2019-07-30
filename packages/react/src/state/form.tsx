@@ -24,10 +24,10 @@ export const StateForm = createHOC((options, Form) => {
       locale: {}
     }
 
-    private timerId: number
     private unmounted: boolean
     private initialized: boolean
     private lastFormValues: IFormState
+    private formState: IFormState
     private form: Form
     private unsubscribe: () => void
 
@@ -41,6 +41,12 @@ export const StateForm = createHOC((options, Form) => {
         subscribes: props.subscribes,
         schema: props.schema,
         editable: props.editable,
+        traverse: schema => {
+          const traverse =
+            schema &&
+            getFormFieldPropsTransformer(schema['x-component'] || schema.type)
+          return traverse ? traverse(schema) : schema
+        },
         onSubmit: this.onSubmitHandler(props),
         onFormChange: this.onFormChangeHandler(props),
         onFieldChange: this.onFieldChangeHandler(props),
@@ -50,7 +56,7 @@ export const StateForm = createHOC((options, Form) => {
           props.implementActions(this.getActions(form))
         }
       })
-      this.state = {} as IFormState
+      this.formState = {} as IFormState
       this.initialized = true
     }
 
@@ -86,7 +92,7 @@ export const StateForm = createHOC((options, Form) => {
     }
 
     public onFormChangeHandler(props) {
-      let lastState = this.state
+      let lastState = this.formState
       return ({ formState }) => {
         if (this.unmounted) {
           return
@@ -107,20 +113,10 @@ export const StateForm = createHOC((options, Form) => {
 
         lastState = formState
 
-        if (this.initialized) {
-          if (formState.dirty) {
-            clearTimeout(this.timerId)
-            this.timerId = window.setTimeout(() => {
-              clearTimeout(this.timerId)
-              if (this.unmounted) {
-                return
-              }
-              this.setState(formState)
-            }, 60)
-          }
-        } else {
-          // eslint-disable-next-line react/no-direct-mutation-state
-          this.state = formState
+        // eslint-disable-next-line react/no-direct-mutation-state
+        this.formState = formState
+
+        if (!this.initialized) {
           this.notify({
             type: 'initialize',
             state: formState
@@ -143,12 +139,7 @@ export const StateForm = createHOC((options, Form) => {
     }
 
     public getSchema = path => {
-      const { schema } = this.props
-      const result = getSchemaNodeFromPath(schema, path)
-      const transformer =
-        result &&
-        getFormFieldPropsTransformer(result['x-component'] || result.type)
-      return transformer ? transformer(result) : result
+      return getSchemaNodeFromPath(this.props.schema, path)
     }
 
     public onSubmitHandler = $props => {
@@ -159,19 +150,19 @@ export const StateForm = createHOC((options, Form) => {
           if (promise && promise.then) {
             this.notify({
               type: 'submitting',
-              state: this.state
+              state: this.formState
             })
             promise.then(
               () => {
                 this.notify({
                   type: 'submitted',
-                  state: this.state
+                  state: this.formState
                 })
               },
               error => {
                 this.notify({
                   type: 'submitted',
-                  state: this.state
+                  state: this.formState
                 })
                 throw error
               }
@@ -190,17 +181,18 @@ export const StateForm = createHOC((options, Form) => {
       }
     }
 
-    public shouldComponentUpdate(nextProps) {
-      return !isEqual(nextProps, this.props)
-    }
-
     public componentDidUpdate(prevProps) {
       const { value, editable, initialValues } = this.props
-      if (this.form.isDirtyValues(value)) {
+      if (!isEmpty(value) && !isEqual(value, prevProps.value)) {
+        this.form.changeValues(value)
+      } else if (this.form.isDirtyValues(value)) {
         this.form.changeValues(value)
       }
-      if (this.form.isDirtyValues(initialValues)) {
-        this.form.initialize({ values: initialValues })
+      if (
+        !isEmpty(initialValues) &&
+        !isEqual(initialValues, prevProps.initialValues)
+      ) {
+        this.form.initialize({ values: initialValues, initialValues })
       }
       if (!isEmpty(editable) && !isEqual(editable, prevProps.editable)) {
         this.form.changeEditable(editable)
