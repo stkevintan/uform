@@ -1,4 +1,4 @@
-import { createStateModel } from '../shared/model'
+import { createStateModel, ModelType } from '../shared/model'
 import { clone, FormPath } from '@uform/shared'
 import { IVFieldState, IVFieldStateProps } from '../types'
 
@@ -8,10 +8,21 @@ import { IVFieldState, IVFieldStateProps } from '../types'
  * 可以联动控制Field或者VField的状态
  * 类似于现在UForm的Card之类的容器布局组件
  */
-export const VFieldState = createStateModel(
+
+export type VFieldStateModel<P = any> = ModelType<
+  P,
+  IVFieldState,
+  IVFieldStateProps
+>
+
+export const VFieldState = createStateModel<
+  any,
+  IVFieldState,
+  IVFieldStateProps
+>(
   class VFieldState {
     static displayName = 'VFieldState'
-    static defaultState = {
+    static defaultState: IVFieldState = {
       path: FormPath.getPath(),
       name: '',
       initialized: false,
@@ -22,7 +33,7 @@ export const VFieldState = createStateModel(
       props: {}
     }
 
-    static defaultProps = {}
+    static defaultProps: IVFieldStateProps = {}
 
     private state: IVFieldState
 
@@ -35,13 +46,8 @@ export const VFieldState = createStateModel(
 
     publishState() {
       return {
-        name: this.state.name,
         path: FormPath.getPath(this.state.path),
-        initialized: this.state.initialized,
-        visible: this.state.visible,
-        display: this.state.display,
-        mounted: this.state.mounted,
-        unmounted: this.state.unmounted
+        ...this.state
       }
     }
   }

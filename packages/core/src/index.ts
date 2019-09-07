@@ -15,8 +15,8 @@ import { FormValidator } from '@uform/validator'
 import { FormHeart, LifeCycleTypes } from './shared/lifecycle'
 import { FormGraph } from './shared/graph'
 import { FormState } from './state/form'
-import { VFieldState } from './state/vfield'
-import { FieldState } from './state/field'
+import { VFieldState, VFieldStateModel } from './state/vfield'
+import { FieldState, FieldStateModel } from './state/field'
 import {
   IFormState,
   IFieldState,
@@ -25,7 +25,6 @@ import {
   IFieldProps,
   IVFieldProps
 } from './types'
-import { Model } from './shared/model'
 
 /**
  *
@@ -58,7 +57,7 @@ export const createForm = (options: FormCreatorOptions = {}) => {
       heart.notify(LifeCycleTypes.ON_FORM_INIT, state)
     }
     if (valuesChanged || initialValuesChanged) {
-      graph.eachChildren('', (fieldState: Model) => {
+      graph.eachChildren('', (fieldState: FieldStateModel) => {
         fieldState.setState((state: IFieldState) => {
           if (state.visible) {
             if (valuesChanged) {
@@ -216,8 +215,8 @@ export const createForm = (options: FormCreatorOptions = {}) => {
     path,
     props,
     onChange
-  }: IVFieldProps): typeof VFieldState.prototype {
-    let fieldState: typeof VFieldState.prototype
+  }: IVFieldProps): VFieldStateModel {
+    let fieldState: VFieldStateModel<{ newPath: any; useDirty?: boolean }>
     let newPath = FormPath.getPath(path)
     if (graph.exist(newPath)) {
       fieldState.unsubscribe()
@@ -253,8 +252,8 @@ export const createForm = (options: FormCreatorOptions = {}) => {
     rules,
     onChange,
     props
-  }: IFieldProps): typeof FieldState.prototype {
-    let fieldState: typeof FieldState.prototype
+  }: IFieldProps): FieldStateModel {
+    let fieldState: FieldStateModel
     if (graph.exist(path)) {
       fieldState.unsubscribe()
       fieldState = graph.select(path)

@@ -1,13 +1,16 @@
-import { createStateModel } from '../shared/model'
+import { createStateModel, ModelType } from '../shared/model'
 import { toArr, clone } from '@uform/shared'
 import { IFormState, IFormStateProps, FormStateDirtyMap } from '../types'
 /**
  * 核心数据结构，描述Form级别状态
  */
-export const FormState = createStateModel(
+
+export type FormStateModel<P = any> = ModelType<P, IFormState, IFormStateProps>
+
+export const FormState = createStateModel<any, IFormState, IFormStateProps>(
   class FormState {
     static displayName = 'FormState'
-    static defaultState = {
+    static defaultState: IFormState = {
       pristine: true,
       valid: true,
       invalid: false,
@@ -24,8 +27,7 @@ export const FormState = createStateModel(
       unmounted: false,
       props: {}
     }
-
-    static defaultProps = {
+    static defaultProps: IFormStateProps = {
       lifecycles: []
     }
 

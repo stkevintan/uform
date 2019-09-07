@@ -17,16 +17,34 @@ const hasProxy = !!globalThisPolyfill.Proxy
 
 type Subscriber<S> = (payload: S) => void
 
-type Inner<T> = T extends (...args: any[]) => new (...args: any[]) => infer P
-  ? P
-  : never
+export interface ModelType<PP = any, S = {}, P = {}> {
+  state: S
+  props: P & PP & StateModelProps<S>
+  displayName?: string
+  dirtyNum: number
+  dirtyMap: StateDirtyMap<S>
+  subscribers: Subscriber<S>[]
+  batching: boolean
+  controller: StateModel<S>
+  subscribe: (callback?: Subscriber<S>) => void
+  unsubscribe: (callback?: Subscriber<S>) => void
+  batch: (callback?: () => void) => void
+  notify: (payload: S) => void
+  getState: {
+    (callback: (state: S) => void): void
+    (): S
+  }
+  setState: (callback: (state: S | Draft<S>) => void, silent?: boolean) => void
+  getSourceState: (callback?: (state: S) => S) => S
+  setSourceState: (callback: (state: S) => void) => void
+  hasChanged: (key?: string) => boolean
+  getChanged: () => StateDirtyMap<S>
+}
 
-export type Model = Inner<typeof createStateModel>
-
-export const createStateModel = <State = {}, Props = {}>(
+export const createStateModel = <DefaultProps = any, State = {}, Props = {}>(
   Factory: IStateModelFactory<State, Props>
 ) => {
-  return class Model<DefaultProps> {
+  return class Model implements ModelType<DefaultProps, State, Props> {
     public state: State
     public props: Props & DefaultProps & StateModelProps<State>
     public displayName?: string
@@ -35,6 +53,7 @@ export const createStateModel = <State = {}, Props = {}>(
     public subscribers: Subscriber<State>[]
     public batching: boolean
     public controller: StateModel<State>
+
     constructor(defaultProps: DefaultProps) {
       this.state = { ...Factory.defaultState }
       this.props = {
@@ -115,78 +134,77 @@ export const createStateModel = <State = {}, Props = {}>(
     }
 
     setState = (
-      callback: (state: State | Draft<State>) => State | void,
+      callback: (state: State | Draft<State>) => void,
       silent = false
     ) => {
-      if (isFn(callback)) {
-        if (!hasProxy || this.props.useDirty) {
-          const draft = this.getState()
-          this.dirtyNum = 0
+      if (!isFn(callback)) return
+      if (!hasProxy || this.props.useDirty) {
+        const draft = this.getState()
+        this.dirtyNum = 0
+        this.dirtyMap = {}
+        callback(draft)
+        if (isFn(this.controller.computeState)) {
+          this.controller.computeState(draft)
+        }
+        each(this.state, (value, key) => {
+          if (isEmpty(value) && isEmpty(draft[key])) return
+          if (!isEqual(value, draft[key])) {
+            this.state[key] = draft[key]
+            this.dirtyMap[key] = true
+            this.dirtyNum++
+          }
+        })
+        if (isFn(this.controller.dirtyCheck)) {
+          const result = this.controller.dirtyCheck(this.dirtyMap)
+          if (result !== undefined) {
+            Object.assign(this.dirtyMap, result)
+          }
+        }
+        if (this.dirtyNum > 0 && !silent) {
+          if (this.batching) return
+          this.notify(this.getState())
           this.dirtyMap = {}
-          callback(draft)
-          if (isFn(this.controller.computeState)) {
-            this.controller.computeState(draft)
-          }
-          each(this.state, (value, key) => {
-            if (isEmpty(value) && isEmpty(draft[key])) return
-            if (!isEqual(value, draft[key])) {
-              this.state[key] = draft[key]
-              this.dirtyMap[key] = true
-              this.dirtyNum++
-            }
-          })
-          if (isFn(this.controller.dirtyCheck)) {
-            const result = this.controller.dirtyCheck(this.dirtyMap)
-            if (result !== undefined) {
-              Object.assign(this.dirtyMap, result)
-            }
-          }
-          if (this.dirtyNum > 0 && !silent) {
-            if (this.batching) return
-            this.notify(this.getState())
-            this.dirtyMap = {}
-            this.dirtyNum = 0
-          }
-        } else {
           this.dirtyNum = 0
-          this.dirtyMap = {}
-          //用proxy解决脏检查计算属性问题
-          this.state = produce(
-            this.state,
-            draft => {
-              callback(draft)
-              if (isFn(this.controller.computeState)) {
-                this.controller.computeState(draft)
-              }
-            },
-            patches => {
-              patches.forEach(({ path, op, value }) => {
-                if (!this.dirtyMap[path[0]]) {
-                  if (op === 'replace') {
-                    if (!isEqual(this.state[path[0]], value)) {
-                      this.dirtyMap[path[0]] = true
-                      this.dirtyNum++
-                    }
-                  } else {
+        }
+      } else {
+        this.dirtyNum = 0
+        this.dirtyMap = {}
+        //用proxy解决脏检查计算属性问题
+        this.state = produce(
+          this.state,
+          draft => {
+            callback(draft)
+            if (isFn(this.controller.computeState)) {
+              this.controller.computeState(draft)
+            }
+          },
+          patches => {
+            patches.forEach(({ path, op, value }) => {
+              if (!this.dirtyMap[path[0]]) {
+                if (op === 'replace') {
+                  if (!isEqual(this.state[path[0]], value)) {
                     this.dirtyMap[path[0]] = true
                     this.dirtyNum++
                   }
+                } else {
+                  this.dirtyMap[path[0]] = true
+                  this.dirtyNum++
                 }
-              })
-            }
-          )
-          if (isFn(this.controller.dirtyCheck)) {
-            const result = this.controller.dirtyCheck(this.dirtyMap)
-            if (result !== undefined) {
-              Object.assign(this.dirtyMap, result)
-            }
+              }
+            })
           }
-          if (this.dirtyNum > 0 && !silent) {
-            if (this.batching) return
-            this.notify(this.getState())
-            this.dirtyMap = {}
-            this.dirtyNum = 0
+        )
+        if (isFn(this.controller.dirtyCheck)) {
+          const result = this.controller.dirtyCheck(this.dirtyMap)
+          if (result !== undefined) {
+            Object.assign(this.dirtyMap, result)
           }
+        }
+        if (this.dirtyNum > 0 && !silent) {
+          if (this.batching) return
+          this.notify(this.getState())
+          this.dirtyMap = {}
+          this.dirtyNum = 0
         }
       }
     }

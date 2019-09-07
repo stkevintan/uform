@@ -1,13 +1,19 @@
-import { createStateModel } from '../shared/model'
+import { createStateModel, ModelType } from '../shared/model'
 import { clone, toArr, isValid, FormPath } from '@uform/shared'
 import { IFieldState, IFieldStateProps, FieldStateDirtyMap } from '../types'
 /**
  * 核心数据结构，描述表单字段的所有状态
  */
-export const FieldState = createStateModel(
+
+export type FieldStateModel<P = any> = ModelType<
+  P,
+  IFieldState,
+  IFieldStateProps
+>
+export const FieldState = createStateModel<any, IFieldState, IFieldStateProps>(
   class FieldState {
     static displayName = 'FieldState'
-    static defaultState = {
+    static defaultState: IFieldState = {
       name: '',
       initialized: false,
       pristine: true,
@@ -33,7 +39,7 @@ export const FieldState = createStateModel(
       props: {}
     }
 
-    static defaultProps = {}
+    static defaultProps: IFieldStateProps = {}
 
     private state: IFieldState
 

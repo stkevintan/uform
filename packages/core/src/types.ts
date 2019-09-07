@@ -2,7 +2,8 @@ import { FormPath, FormPathPattern } from '@uform/shared'
 import { ValidateArrayRules } from '@uform/validator'
 import { FormLifeCycle } from './shared/lifecycle'
 import { Draft } from 'immer'
-import { Model } from './shared/model'
+import { FieldStateModel } from './state/field'
+import { VFieldStateModel } from './state/vfield'
 
 export type FormGraphNodeMap<T> = {
   [key in string]: T
@@ -47,6 +48,7 @@ export interface StateModel<P> {
   publishState?: (state: P) => P
   dirtyCheck?: (dirtys: StateDirtyMap<P>) => StateDirtyMap<P> | void
   computeState?: (state: Draft<P>) => Draft<P> | void
+  [key: string]: any
 }
 
 export interface StateModelProps<S> {
@@ -102,11 +104,11 @@ export interface IFieldStateProps {
 }
 
 export interface IFieldProps extends IFieldStateProps {
-  onChange?: (fieldState: Model) => void
+  onChange?: (fieldState: FieldStateModel) => void
 }
 
 export interface IVFieldProps extends IVFieldStateProps {
-  onChange?: (fieldState: Model) => void
+  onChange?: (fieldState: VFieldStateModel) => void
 }
 
 export interface IFormState {
@@ -153,6 +155,6 @@ export interface IVFieldState {
 export type VFieldStateDirtyMap = StateDirtyMap<IFieldState>
 
 export interface IVFieldStateProps {
-  path: FormPathPattern
+  path?: FormPathPattern
   props?: {}
 }
