@@ -49,6 +49,11 @@ export const FormState = createStateModel<any, IFormState, IFormStateProps>(
         draft.invalid = false
         draft.valid = true
       }
+      if (isEqual(draft.values, draft.initialValues)) {
+        draft.pristine = true
+      } else {
+        draft.pristine = false
+      }
       if (draft.validating === true) {
         draft.loading = true
       } else if (draft.validating === false) {
@@ -59,12 +64,6 @@ export const FormState = createStateModel<any, IFormState, IFormStateProps>(
       }
       if (draft.unmounted === true) {
         draft.mounted = false
-      }
-    }
-
-    dirtyCheck(dirtys: FormStateDirtyMap) {
-      if (dirtys.values) {
-        this.state.pristine = false
       }
     }
   }

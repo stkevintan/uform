@@ -1,6 +1,6 @@
 import { createStateModel, ModelType } from '../shared/model'
-import { clone, toArr, isValid, FormPath } from '@uform/shared'
-import { IFieldState, IFieldStateProps, FieldStateDirtyMap } from '../types'
+import { clone, toArr, isValid, isEqual, FormPath } from '@uform/shared'
+import { IFieldState, IFieldStateProps } from '../types'
 /**
  * 核心数据结构，描述表单字段的所有状态
  */
@@ -18,7 +18,10 @@ export const FieldState = createStateModel<any, IFieldState, IFieldStateProps>(
       initialized: false,
       pristine: true,
       valid: true,
+      modified: false,
       touched: false,
+      active: false,
+      visited: false,
       invalid: false,
       visible: true,
       display: true,
@@ -39,7 +42,11 @@ export const FieldState = createStateModel<any, IFieldState, IFieldStateProps>(
       props: {}
     }
 
-    static defaultProps: IFieldStateProps = {}
+    static defaultProps = {
+      path: '',
+      editable: true,
+      props: {}
+    }
 
     private state: IFieldState
 
@@ -101,10 +108,11 @@ export const FieldState = createStateModel<any, IFieldState, IFieldStateProps>(
       }
     }
 
-    computeState(draft: IFieldState) {
+    computeState(draft: IFieldState, prevState: IFieldState) {
+      //如果是隐藏状态，则禁止修改值
       if (!draft.visible || draft.unmounted) {
-        draft.value = this.state.value
-        draft.initialValue = this.state.initialValue
+        draft.value = prevState.value
+        draft.initialValue = prevState.initialValue
       }
       draft.rules = toArr(draft.rules)
       draft.warnings = toArr(draft.warnings).filter(v => !!v)
@@ -114,18 +122,26 @@ export const FieldState = createStateModel<any, IFieldState, IFieldStateProps>(
       const { value, values } = this.parseValues(draft)
       draft.value = value
       draft.values = values
+      if (
+        draft.initialized &&
+        prevState.initialized &&
+        !isEqual(draft.value, prevState.value)
+      ) {
+        draft.modified = true
+      }
+      if (isEqual(draft.value, draft.initialValue)) {
+        draft.pristine = true
+      } else {
+        draft.pristine = false
+      }
+      if (!isValid(draft.props)) {
+        draft.props = prevState.props
+      }
       if (!draft.editable) {
         draft.errors = []
         draft.effectErrors = []
         draft.warnings = []
         draft.effectWarnings = []
-      }
-      if (draft.errors.length) {
-        draft.invalid = true
-        draft.valid = false
-      } else {
-        draft.invalid = false
-        draft.valid = true
       }
       if (draft.effectErrors.length) {
         draft.invalid = true
@@ -139,17 +155,32 @@ export const FieldState = createStateModel<any, IFieldState, IFieldStateProps>(
       } else if (draft.validating === false) {
         draft.loading = false
       }
+      if (draft.mounted === true) {
+        draft.unmounted = false
+      }
+      if (draft.visible === false) {
+        draft.errors = []
+        draft.effectErrors = []
+        draft.warnings = []
+        draft.effectWarnings = []
+      }
+      if (draft.unmounted === true) {
+        draft.mounted = false
+        draft.errors = []
+        draft.effectErrors = []
+        draft.warnings = []
+        draft.effectWarnings = []
+      }
+      if (draft.errors.length) {
+        draft.invalid = true
+        draft.valid = false
+      } else {
+        draft.invalid = false
+        draft.valid = true
+      }
       const { rules, required } = this.parseRules(draft)
       draft.rules = rules
       draft.required = required
-    }
-
-    dirtyCheck(dirtys: FieldStateDirtyMap) {
-      if (dirtys.value) {
-        if (!dirtys.initialized) {
-          this.state.pristine = false
-        }
-      }
     }
   }
 )

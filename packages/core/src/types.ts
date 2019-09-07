@@ -47,8 +47,7 @@ export type StateDirtyMap<P> = {
 export interface StateModel<P> {
   publishState?: (state: P) => P
   dirtyCheck?: (dirtys: StateDirtyMap<P>) => StateDirtyMap<P> | void
-  computeState?: (state: Draft<P>) => Draft<P> | void
-  [key: string]: any
+  computeState?: (state: Draft<P>, preState?: P) => Draft<P> | void
 }
 
 export interface StateModelProps<S> {
@@ -66,6 +65,7 @@ export interface IStateModelFactory<S, P> {
 
 export interface IFieldState {
   path: FormPath
+  displayName: string
   name: string
   initialized: boolean
   pristine: boolean
@@ -76,6 +76,9 @@ export interface IFieldState {
   display: boolean
   editable: boolean
   loading: boolean
+  modified: boolean
+  active: boolean
+  visited: boolean
   validating: boolean
   errors: string[]
   values: any[]
@@ -145,6 +148,7 @@ export type FormCreatorOptions = IFormStateProps & {
 export interface IVFieldState {
   path: FormPath
   name: string
+  displayName: string
   initialized: boolean
   visible: boolean
   display: boolean

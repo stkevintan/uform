@@ -3,7 +3,6 @@ import {
   isEqual,
   isFn,
   each,
-  isEmpty,
   globalThisPolyfill
 } from '@uform/shared'
 import produce, { Draft } from 'immer'
@@ -66,6 +65,7 @@ export const createStateModel = <DefaultProps = any, State = {}, Props = {}>(
       this.batching = false
       this.controller = new Factory(this.state, this.props)
       this.displayName = Factory.displayName
+      this.state.displayName = this.displayName
     }
 
     subscribe = (callback?: Subscriber<State>) => {
@@ -119,7 +119,7 @@ export const createStateModel = <DefaultProps = any, State = {}, Props = {}>(
       }
     }
 
-    getSourceState = (callback?: (state: State) => State) => {
+    unsafe_getSourceState = (callback?: (state: State) => State) => {
       if (isFn(callback)) {
         return callback(this.state)
       } else {
@@ -127,9 +127,13 @@ export const createStateModel = <DefaultProps = any, State = {}, Props = {}>(
       }
     }
 
-    setSourceState = (callback: (state: State) => void) => {
+    unsafe_setSourceState = (callback: (state: State) => void) => {
       if (isFn(callback)) {
-        callback(this.state)
+        if (!hasProxy || this.props.useDirty) {
+          callback(this.state)
+        } else {
+          this.state = produce(this.state, callback)
+        }
       }
     }
 
@@ -137,21 +141,27 @@ export const createStateModel = <DefaultProps = any, State = {}, Props = {}>(
       callback: (state: State | Draft<State>) => void,
       silent = false
     ) => {
-      if (!isFn(callback)) return
-      if (!hasProxy || this.props.useDirty) {
-        const draft = this.getState()
-        this.dirtyNum = 0
-        this.dirtyMap = {}
-        callback(draft)
-        if (isFn(this.controller.computeState)) {
-          this.controller.computeState(draft)
-        }
-        each(this.state, (value, key) => {
-          if (isEmpty(value) && isEmpty(draft[key])) return
-          if (!isEqual(value, draft[key])) {
-            this.state[key] = draft[key]
-            this.dirtyMap[key] = true
-            this.dirtyNum++
+      if (isFn(callback)) {
+        if (!hasProxy || this.props.useDirty) {
+          const draft = this.getState()
+          this.dirtyNum = 0
+          this.dirtyMap = {}
+          callback(draft)
+          if (isFn(this.controller.computeState)) {
+            this.controller.computeState(draft, this.state)
+          }
+          each(this.state, (value, key) => {
+            if (!isEqual(value, draft[key])) {
+              this.state[key] = draft[key]
+              this.dirtyMap[key] = true
+              this.dirtyNum++
+            }
+          })
+          if (isFn(this.controller.dirtyCheck)) {
+            const result = this.controller.dirtyCheck(this.dirtyMap)
+            if (result !== undefined) {
+              Object.assign(this.dirtyMap, result)
+            }
           }
         })
         if (isFn(this.controller.dirtyCheck)) {
@@ -164,25 +174,24 @@ export const createStateModel = <DefaultProps = any, State = {}, Props = {}>(
           if (this.batching) return
           this.notify(this.getState())
           this.dirtyMap = {}
-          this.dirtyNum = 0
-        }
-      } else {
-        this.dirtyNum = 0
-        this.dirtyMap = {}
-        //用proxy解决脏检查计算属性问题
-        this.state = produce(
-          this.state,
-          draft => {
-            callback(draft)
-            if (isFn(this.controller.computeState)) {
-              this.controller.computeState(draft)
-            }
-          },
-          patches => {
-            patches.forEach(({ path, op, value }) => {
-              if (!this.dirtyMap[path[0]]) {
-                if (op === 'replace') {
-                  if (!isEqual(this.state[path[0]], value)) {
+          //用proxy解决脏检查计算属性问题
+          this.state = produce(
+            this.state,
+            draft => {
+              callback(draft)
+              if (isFn(this.controller.computeState)) {
+                this.controller.computeState(draft, this.state)
+              }
+            },
+            patches => {
+              patches.forEach(({ path, op, value }) => {
+                if (!this.dirtyMap[path[0]]) {
+                  if (op === 'replace') {
+                    if (!isEqual(this.state[path[0]], value)) {
+                      this.dirtyMap[path[0]] = true
+                      this.dirtyNum++
+                    }
+                  } else {
                     this.dirtyMap[path[0]] = true
                     this.dirtyNum++
                   }
@@ -210,13 +219,13 @@ export const createStateModel = <DefaultProps = any, State = {}, Props = {}>(
     }
 
     hasChanged = (key?: string) =>
-      key ? !!this.dirtyMap[key] : this.dirtyNum > 0
+      key ? this.dirtyMap[key] === true : this.dirtyNum > 0
 
     getChanged = () => {
       if (!hasProxy || this.props.useDirty) {
         return clone(this.dirtyMap)
       } else {
-        return produce(this.dirtyMap, () => {})
+        return this.dirtyMap
       }
     }
   }

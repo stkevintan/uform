@@ -87,13 +87,20 @@ export class FormGraph<NodeType = any> {
   /**
    * 递归遍历所有children
    */
-  eachChildren = (path: FormPathPattern, eacher: FormGraphEacher<NodeType>) => {
+  eachChildren = (
+    path: FormPathPattern,
+    eacher: FormGraphEacher<NodeType>,
+    recursion: boolean = true
+  ) => {
     const ref = this.refrences[FormPath.getPath(path)]
     if (ref && ref.children) {
       return each(ref.children, path => {
         if (isFn(eacher)) {
-          eacher(this.getNode(path), path)
-          this.eachChildren(path, eacher)
+          const node = this.getNode(path)
+          if (node) {
+            eacher(node, path)
+            if (recursion) this.eachChildren(path, eacher, recursion)
+          }
         }
       })
     }

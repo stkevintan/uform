@@ -22,8 +22,7 @@ export const VFieldState = createStateModel<
 >(
   class VFieldState {
     static displayName = 'VFieldState'
-    static defaultState: IVFieldState = {
-      path: FormPath.getPath(),
+    static defaultState = {
       name: '',
       initialized: false,
       visible: true,
@@ -33,21 +32,31 @@ export const VFieldState = createStateModel<
       props: {}
     }
 
-    static defaultProps: IVFieldStateProps = {}
+    static defaultProps = {
+      path: '',
+      props: {}
+    }
 
     private state: IVFieldState
 
+    private path: FormPath
+
     constructor(state: IVFieldState, props: IVFieldStateProps) {
       this.state = state
-      this.state.path = FormPath.getPath(props.path)
-      this.state.name = this.state.path.entire
+      this.path = FormPath.getPath(props.path)
+      this.state.name = this.path.entire
       this.state.props = clone(props.props)
     }
 
-    publishState() {
-      return {
-        path: FormPath.getPath(this.state.path),
-        ...this.state
+    computeState(draft: IVFieldState, prevState: IVFieldState) {
+      if (draft.mounted === true) {
+        draft.unmounted = false
+      }
+      if (!isValid(draft.props)) {
+        draft.props = prevState.props
+      }
+      if (draft.unmounted === true) {
+        draft.mounted = false
       }
     }
   }
